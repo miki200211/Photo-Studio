@@ -54,53 +54,6 @@
   <!-- Main Content Area -->
   <main>
     
-    <!-- Collapsible Settings Panel -->
-    <section class="settings-console" id="settings-console">
-      <div class="settings-header" id="settings-header">
-        <div class="settings-title">
-          <i class="fas fa-cog"></i>
-          <span>系統設定 (Google Apps Script 與 Drive 連接)</span>
-        </div>
-        <i class="fas fa-chevron-down" id="settings-caret"></i>
-      </div>
-      
-      <div class="settings-body collapsed" id="settings-body">
-        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
-          本網頁支援 <strong>Demo 演示模式 (LocalStorage)</strong> 與 <strong>實時 API 模式 (Google Apps Script)</strong>。
-        </p>
-        
-        <div class="form-group">
-          <label>連線模式：</label>
-          <div class="mode-selectors">
-            <input type="radio" id="mode-demo" name="apiMode" value="demo" class="mode-radio" checked>
-            <label for="mode-demo" class="mode-label">
-              <i class="fas fa-desktop"></i>
-              <span>Demo 演示模式</span>
-              <span class="badge badge-demo">瀏覽器本機儲存</span>
-            </label>
-            
-            <input type="radio" id="mode-gas" name="apiMode" value="gas" class="mode-radio">
-            <label for="mode-gas" class="mode-label">
-              <i class="fas fa-cloud"></i>
-              <span>GAS 實時模式</span>
-              <span class="badge badge-live">Google 雲端連接</span>
-            </label>
-          </div>
-        </div>
-        
-        <div class="form-group" id="gas-url-group" style="display: none; margin-top: 1rem;">
-          <label for="gas-url-input">Google Apps Script Web App URL：</label>
-          <input type="url" id="gas-url-input" class="input-control" placeholder="https://script.google.com/macros/s/.../exec">
-          <span style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
-            請貼上您部署 Google Apps Script 後產生的 Web App URL。詳細設定方式請參考 <a href="README.md" target="_blank" style="color: var(--primary);">說明文件</a>。
-          </span>
-        </div>
-        
-        <button class="btn btn-primary" id="save-settings-btn" style="margin-top: 1rem; width: 100%;">
-          <i class="fas fa-save"></i> 儲存並應用設定
-        </button>
-      </div>
-    </section>
 
     <!-- VIEW 1: Feed/Posts View -->
     <section class="view-section active" id="feed-view">
