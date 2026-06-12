@@ -25,7 +25,7 @@ function doGet(e) {
 }
 
 /**
- * POST requests handler (Register, Login, Upload, Comment, React)
+ * POST requests handler (Register, Login, Upload, Comment, React, Edit/Delete)
  * Note: Use Content-Type "text/plain" in client requests to bypass CORS preflight checks.
  */
 function doPost(e) {
@@ -48,6 +48,14 @@ function doPost(e) {
       response = handleAddComment(payload);
     } else if (action === "reactPost") {
       response = handleReactPost(payload);
+    } else if (action === "editPost") {
+      response = handleEditPost(payload);
+    } else if (action === "deletePost") {
+      response = handleDeletePost(payload);
+    } else if (action === "editComment") {
+      response = handleEditComment(payload);
+    } else if (action === "deleteComment") {
+      response = handleDeleteComment(payload);
     } else if (action === "getFeed") {
       response = { success: true, data: getFeedData() };
     } else {
@@ -73,7 +81,6 @@ function getOrCreateFolder(parentFolder, folderName) {
   }
   
   var newFolder = parentFolder ? parentFolder.createFolder(folderName) : DriveApp.createFolder(folderName);
-  // Set sharing to anyone with link can view
   newFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   return newFolder;
 }
@@ -131,7 +138,6 @@ function getMessengerSpreadsheet() {
     var file = files.next();
     var ss = SpreadsheetApp.openById(file.getId());
     
-    // Auto-update check: ensure Reactions column exists in Posts sheet
     var postsSheet = ss.getSheetByName("Posts");
     if (postsSheet && postsSheet.getLastRow() > 0) {
       var range = postsSheet.getRange(1, 8);
@@ -144,12 +150,10 @@ function getMessengerSpreadsheet() {
   
   var ss = SpreadsheetApp.create("Messenger Database");
   
-  // Setup Posts sheet (8 columns: Reactions added)
   var postsSheet = ss.getActiveSheet();
   postsSheet.setName("Posts");
   postsSheet.appendRow(["Id", "Email", "Name", "ImageUrl", "DriveFileId", "Description", "CreatedAt", "Reactions"]);
   
-  // Setup Comments sheet
   var commentsSheet = ss.insertSheet("Comments");
   commentsSheet.appendRow(["Id", "PostId", "Email", "Name", "Comment", "CreatedAt"]);
   
@@ -249,10 +253,8 @@ function handleUploadPost(payload) {
   
   var ss = getMessengerSpreadsheet();
   var sheet = ss.getSheetByName("Posts");
-  
   var postId = "post_" + new Date().getTime() + "_" + Math.floor(Math.random() * 1000);
   
-  // Appends with empty reactions JSON "{}"
   sheet.appendRow([
     postId,
     email,
@@ -280,6 +282,101 @@ function handleUploadPost(payload) {
 }
 
 /**
+ * Action Handler: Edit Post Description
+ */
+function handleEditPost(payload) {
+  var postId = payload.postId;
+  var email = (payload.email || "").trim().toLowerCase();
+  var description = payload.description || "";
+  
+  if (!postId || !email || !description) {
+    return { success: false, message: "Missing required fields" };
+  }
+  
+  var ss = getMessengerSpreadsheet();
+  var sheet = ss.getSheetByName("Posts");
+  var data = sheet.getDataRange().getValues();
+  
+  var foundRow = -1;
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0].toString() === postId) {
+      if (data[i][1].toString().toLowerCase() !== email) {
+        return { success: false, message: "Unauthorized: You do not own this post" };
+      }
+      foundRow = i + 1;
+      break;
+    }
+  }
+  
+  if (foundRow === -1) {
+    return { success: false, message: "Post not found" };
+  }
+  
+  // Update description column (6th column, index F)
+  sheet.getRange(foundRow, 6).setValue(description);
+  return { success: true, message: "Post description updated successfully" };
+}
+
+/**
+ * Action Handler: Delete Post, Comments, and Drive File
+ */
+function handleDeletePost(payload) {
+  var postId = payload.postId;
+  var email = (payload.email || "").trim().toLowerCase();
+  
+  if (!postId || !email) {
+    return { success: false, message: "Missing post reference or author credentials" };
+  }
+  
+  var ss = getMessengerSpreadsheet();
+  var postsSheet = ss.getSheetByName("Posts");
+  var data = postsSheet.getDataRange().getValues();
+  
+  var foundRow = -1;
+  var driveFileId = "";
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0].toString() === postId) {
+      if (data[i][1].toString().toLowerCase() !== email) {
+        return { success: false, message: "Unauthorized: You do not own this post" };
+      }
+      foundRow = i + 1;
+      driveFileId = data[i][4].toString();
+      break;
+    }
+  }
+  
+  if (foundRow === -1) {
+    return { success: false, message: "Post not found" };
+  }
+  
+  // 1. Delete post row from spreadsheet
+  postsSheet.deleteRow(foundRow);
+  
+  // 2. Cascade delete comments
+  var commentsSheet = ss.getSheetByName("Comments");
+  if (commentsSheet && commentsSheet.getLastRow() > 1) {
+    var commentsData = commentsSheet.getDataRange().getValues();
+    for (var j = commentsData.length - 1; j >= 1; j--) {
+      if (commentsData[j][1].toString() === postId) {
+        commentsSheet.deleteRow(j + 1);
+      }
+    }
+  }
+  
+  // 3. Move image file in Google Drive to Trash
+  if (driveFileId) {
+    try {
+      var file = DriveApp.getFileById(driveFileId);
+      file.setTrashed(true);
+    } catch(e) {
+      console.warn("Could not trash Drive file: " + e.toString());
+    }
+  }
+  
+  return { success: true, message: "Post deleted successfully" };
+}
+
+/**
  * Action Handler: Add Comment
  */
 function handleAddComment(payload) {
@@ -294,8 +391,8 @@ function handleAddComment(payload) {
   
   var ss = getMessengerSpreadsheet();
   var sheet = ss.getSheetByName("Comments");
-  
   var commentId = "comment_" + new Date().getTime() + "_" + Math.floor(Math.random() * 1000);
+  
   sheet.appendRow([
     commentId,
     postId,
@@ -320,11 +417,82 @@ function handleAddComment(payload) {
 }
 
 /**
- * Action Handler: React to Post
+ * Action Handler: Edit Comment
+ */
+function handleEditComment(payload) {
+  var commentId = payload.commentId;
+  var email = (payload.email || "").trim().toLowerCase();
+  var commentText = (payload.comment || "").trim();
+  
+  if (!commentId || !email || !commentText) {
+    return { success: false, message: "Missing required fields" };
+  }
+  
+  var ss = getMessengerSpreadsheet();
+  var sheet = ss.getSheetByName("Comments");
+  var data = sheet.getDataRange().getValues();
+  
+  var foundRow = -1;
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0].toString() === commentId) {
+      if (data[i][2].toString().toLowerCase() !== email) {
+        return { success: false, message: "Unauthorized: You do not own this comment" };
+      }
+      foundRow = i + 1;
+      break;
+    }
+  }
+  
+  if (foundRow === -1) {
+    return { success: false, message: "Comment not found" };
+  }
+  
+  // Update comment text (5th column, index E)
+  sheet.getRange(foundRow, 5).setValue(commentText);
+  return { success: true, message: "Comment updated successfully" };
+}
+
+/**
+ * Action Handler: Delete Comment
+ */
+function handleDeleteComment(payload) {
+  var commentId = payload.commentId;
+  var email = (payload.email || "").trim().toLowerCase();
+  
+  if (!commentId || !email) {
+    return { success: false, message: "Missing comment reference or author credentials" };
+  }
+  
+  var ss = getMessengerSpreadsheet();
+  var sheet = ss.getSheetByName("Comments");
+  var data = sheet.getDataRange().getValues();
+  
+  var foundRow = -1;
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0].toString() === commentId) {
+      if (data[i][2].toString().toLowerCase() !== email) {
+        return { success: false, message: "Unauthorized: You do not own this comment" };
+      }
+      foundRow = i + 1;
+      break;
+    }
+  }
+  
+  if (foundRow === -1) {
+    return { success: false, message: "Comment not found" };
+  }
+  
+  sheet.deleteRow(foundRow);
+  return { success: true, message: "Comment deleted successfully" };
+}
+
+/**
+ * Action Handler: React to Post (Toggle Support added)
  */
 function handleReactPost(payload) {
   var postId = payload.postId;
   var emoji = payload.emoji;
+  var isRemoving = payload.isRemoving === true;
   
   if (!postId || !emoji) {
     return { success: false, message: "Missing post reference or emoji key" };
@@ -337,7 +505,7 @@ function handleReactPost(payload) {
   var foundRow = -1;
   for (var i = 1; i < data.length; i++) {
     if (data[i][0].toString() === postId) {
-      foundRow = i + 1; // 1-indexed spreadsheet row
+      foundRow = i + 1;
       break;
     }
   }
@@ -358,16 +526,22 @@ function handleReactPost(payload) {
     }
   }
   
-  if (!reactions[emoji]) {
-    reactions[emoji] = 0;
+  if (isRemoving) {
+    if (reactions[emoji]) {
+      reactions[emoji] = Math.max(0, reactions[emoji] - 1);
+    }
+  } else {
+    if (!reactions[emoji]) {
+      reactions[emoji] = 0;
+    }
+    reactions[emoji] = reactions[emoji] + 1;
   }
-  reactions[emoji] = reactions[emoji] + 1;
   
   cell.setValue(JSON.stringify(reactions));
   
   return { 
     success: true, 
-    message: "Reaction saved", 
+    message: "Reaction updated", 
     postId: postId, 
     reactions: reactions 
   };
@@ -406,7 +580,6 @@ function getFeedData() {
         reactions: reactions
       };
     });
-    // Sort posts: newest first
     posts.sort(function(a, b) {
       return new Date(b.createdAt) - new Date(a.createdAt);
     });
@@ -424,13 +597,11 @@ function getFeedData() {
         createdAt: row[5].toString()
       };
     });
-    // Sort comments: oldest first
     comments.sort(function(a, b) {
       return new Date(a.createdAt) - new Date(b.createdAt);
     });
   }
   
-  // Group comments inside posts
   posts.forEach(function(post) {
     post.comments = comments.filter(function(c) {
       return c.postId === post.id;

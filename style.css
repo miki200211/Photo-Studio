@@ -1143,4 +1143,121 @@ main.layout-cols-6 { max-width: 1800px; }
   }
 }
 
+/* Post Card Actions (Edit/Delete) */
+.post-user {
+  position: relative;
+}
+
+.post-card-actions {
+  position: absolute;
+  top: 1rem;
+  right: 1.25rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.post-action-icon-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem;
+  border-radius: 50%;
+}
+
+.post-action-icon-btn:hover {
+  color: var(--primary);
+  background-color: var(--primary-light);
+}
+
+.post-action-icon-btn.btn-delete-post:hover {
+  color: var(--error);
+  background-color: #fef2f2;
+}
+
+/* Post Inline Edit Container */
+.post-edit-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.post-edit-textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 80px;
+  font-family: var(--font-body);
+}
+
+.post-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+/* Comment Item Actions (Edit/Delete links) */
+.comment-meta-row {
+  display: flex;
+  align-items: center;
+  margin-top: 0.25rem;
+}
+
+.comment-item-actions {
+  display: inline-flex;
+  gap: 0.5rem;
+  margin-left: 0.75rem;
+}
+
+.comment-action-link {
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: var(--transition);
+}
+
+.comment-action-link:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.comment-action-link.link-delete:hover {
+  color: var(--error);
+}
+
+/* Comment Inline Edit Container */
+.comment-edit-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.comment-edit-input {
+  width: 100%;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.comment-edit-actions {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.btn-xs {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  height: auto;
+}
+
+
 

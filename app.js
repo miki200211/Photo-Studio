@@ -382,6 +382,7 @@ async function handleAuthSubmit(e) {
       showToast(result.message, "success");
       closeAuthModal();
       updateAuthUI();
+      filterAndRenderFeed();
     } else {
       showToast(result.message, "error");
     }
@@ -401,6 +402,8 @@ function handleLogout() {
   showToast("已成功登出會員", "success");
   if (state.currentTab === 'upload') {
     switchTab('feed');
+  } else {
+    filterAndRenderFeed();
   }
 }
 
@@ -609,12 +612,10 @@ function parseMentions(text) {
   if (!text) return '';
   let escaped = escapeHtml(text);
   
-  // Replace @name
   escaped = escaped.replace(/@([^\s#@,.;!?:()\[\]{}""'']+)/g, (match, name) => {
     return `<span class="tag-mention" onclick="setSearchFilter('@${name}', event)">@${name}</span>`;
   });
   
-  // Replace #tag
   escaped = escaped.replace(/#([^\s#@,.;!?:()\[\]{}""'']+)/g, (match, tag) => {
     return `<span class="tag-hash" onclick="setSearchFilter('#${tag}', event)">#${tag}</span>`;
   });
@@ -657,7 +658,22 @@ function renderFeed(postsToRender) {
     const isCommentsVisible = localStorage.getItem(`comments_visible_${post.id}`) === 'true';
     const initials = (post.name || "?").substring(0, 2);
     
-    // 1. Emoji Reactions HTML
+    // Auth Check: Is current user the post author?
+    const isPostAuthor = state.currentUser && state.currentUser.email.toLowerCase() === post.email.toLowerCase();
+    const postActionsHtml = isPostAuthor 
+      ? `
+        <div class="post-card-actions">
+          <button class="post-action-icon-btn btn-edit-post" onclick="toggleEditPost('${post.id}')" title="編輯貼文">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button class="post-action-icon-btn btn-delete-post" onclick="deletePost('${post.id}')" title="刪除貼文">
+            <i class="fas fa-trash-alt"></i>
+          </button>
+        </div>
+      `
+      : '';
+
+    // Emoji Reactions HTML
     const reactions = post.reactions || {};
     const reactionsHtml = Object.keys(EMOJIS).map(key => {
       const info = EMOJIS[key];
@@ -671,7 +687,7 @@ function renderFeed(postsToRender) {
       `;
     }).join('');
 
-    // 2. Comments form HTML
+    // Comments Form
     const commentFormHtml = state.currentUser 
       ? `
         <form class="add-comment-form" onsubmit="submitComment(event, '${post.id}')">
@@ -687,36 +703,56 @@ function renderFeed(postsToRender) {
         </div>
       `;
 
-    // 3. Comments container HTML
+    // Render Comments List
+    const commentsHtml = commentsList.map(c => {
+      const isCommentAuthor = state.currentUser && state.currentUser.email.toLowerCase() === c.email.toLowerCase();
+      const commentActionsHtml = isCommentAuthor
+        ? `
+          <div class="comment-item-actions">
+            <span class="comment-action-link link-edit" onclick="toggleEditComment('${post.id}', '${c.id}')">編輯</span>
+            <span class="comment-action-link link-delete" onclick="deleteComment('${post.id}', '${c.id}')">刪除</span>
+          </div>
+        `
+        : '';
+        
+      return `
+        <div class="comment-item">
+          <div class="user-avatar comment-avatar">${(c.name || "?").substring(0, 1)}</div>
+          <div class="comment-bubble">
+            <div>
+              <span class="comment-author">${escapeHtml(c.name)}</span>
+              <div id="comment-body-container-${c.id}" style="display: inline;">
+                <span class="comment-text" id="comment-text-span-${c.id}">${escapeHtml(c.comment)}</span>
+              </div>
+            </div>
+            <div class="comment-meta-row">
+              <span class="comment-time">${formatTime(c.createdAt)}</span>
+              ${commentActionsHtml}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
     const commentsContainerHtml = `
       <div class="comments-container" id="comments-container-${post.id}" style="display: ${isCommentsVisible ? 'flex' : 'none'};">
         ${commentsList.length === 0 
-          ? `<p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 0.5rem 0;">目前還沒有留言，快來搶沙發！</p>` 
-          : commentsList.map(c => `
-              <div class="comment-item">
-                <div class="user-avatar comment-avatar">${(c.name || "?").substring(0, 1)}</div>
-                <div class="comment-bubble">
-                  <div>
-                    <span class="comment-author">${escapeHtml(c.name)}</span>
-                    <span class="comment-text">${escapeHtml(c.comment)}</span>
-                  </div>
-                  <span class="comment-time">${formatTime(c.createdAt)}</span>
-                </div>
-              </div>
-            `).join('')
+          ? `<p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 0.5rem 0;" id="empty-comment-placeholder-${post.id}">目前還沒有留言，快來搶沙發！</p>` 
+          : commentsHtml
         }
         ${commentFormHtml}
       </div>
     `;
 
     return `
-      <article class="post-card">
+      <article class="post-card" id="post-card-${post.id}">
         <div class="post-user">
           <div class="user-avatar">${initials}</div>
           <div class="post-meta">
             <span class="post-author-name">${escapeHtml(post.name)}</span>
             <span class="post-time">${timeFormatted}</span>
           </div>
+          ${postActionsHtml}
         </div>
         
         <div class="post-image-container">
@@ -724,7 +760,9 @@ function renderFeed(postsToRender) {
         </div>
         
         <div class="post-content">
-          <p class="post-description">${parseMentions(post.description)}</p>
+          <div class="post-description-container" id="post-desc-container-${post.id}">
+            <p class="post-description" id="post-desc-text-${post.id}">${parseMentions(post.description)}</p>
+          </div>
         </div>
         
         <!-- Emoji Reactions Panel -->
@@ -761,6 +799,223 @@ window.clearSearchFilter = function() {
   filterAndRenderFeed();
 };
 
+// Post Editing Methods
+window.toggleEditPost = function(postId) {
+  const container = document.getElementById(`post-desc-container-${postId}`);
+  const post = state.posts.find(p => p.id === postId);
+  if (!post) return;
+  
+  container.innerHTML = `
+    <div class="post-edit-container">
+      <textarea class="input-control post-edit-textarea" id="edit-textarea-${postId}" required>${post.description}</textarea>
+      <div class="post-edit-actions">
+        <button class="btn btn-secondary btn-xs" onclick="cancelEditPost('${postId}')">取消</button>
+        <button class="btn btn-primary btn-xs" onclick="saveEditPost('${postId}')">儲存</button>
+      </div>
+    </div>
+  `;
+  document.getElementById(`edit-textarea-${postId}`).focus();
+};
+
+window.cancelEditPost = function(postId) {
+  const container = document.getElementById(`post-desc-container-${postId}`);
+  const post = state.posts.find(p => p.id === postId);
+  if (!post) return;
+  
+  container.innerHTML = `<p class="post-description" id="post-desc-text-${postId}">${parseMentions(post.description)}</p>`;
+};
+
+window.saveEditPost = async function(postId) {
+  const textarea = document.getElementById(`edit-textarea-${postId}`);
+  const newDescription = textarea.value.trim();
+  
+  if (!newDescription) {
+    showToast("貼文說明不可為空！", "warning");
+    return;
+  }
+  
+  showToast("正在更新貼文...", "warning");
+  
+  try {
+    const payload = {
+      action: 'editPost',
+      postId: postId,
+      email: state.currentUser.email,
+      description: newDescription
+    };
+    
+    const response = await fetch(state.gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    });
+    
+    const result = await response.json();
+    if (result.success) {
+      showToast("貼文已成功更新！", "success");
+      
+      const post = state.posts.find(p => p.id === postId);
+      if (post) {
+        post.description = newDescription;
+      }
+      
+      cancelEditPost(postId);
+    } else {
+      showToast(`更新失敗: ${result.message}`, "error");
+    }
+  } catch(e) {
+    showToast(`網路錯誤，無法更新貼文: ${e.message}`, "error");
+  }
+};
+
+window.deletePost = async function(postId) {
+  if (!confirm("您確定要刪除這篇貼文嗎？\n（這將會連同刪除雲端硬碟的圖片與所有留言，且無法復原）")) {
+    return;
+  }
+  
+  showToast("正在刪除貼文與雲端檔案...", "warning");
+  
+  try {
+    const payload = {
+      action: 'deletePost',
+      postId: postId,
+      email: state.currentUser.email
+    };
+    
+    const response = await fetch(state.gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    });
+    
+    const result = await response.json();
+    if (result.success) {
+      showToast("貼文與雲端檔案已成功刪除！", "success");
+      state.posts = state.posts.filter(p => p.id !== postId);
+      filterAndRenderFeed();
+    } else {
+      showToast(`刪除失敗: ${result.message}`, "error");
+    }
+  } catch(e) {
+    showToast(`網路錯誤，無法刪除貼文: ${e.message}`, "error");
+  }
+};
+
+// Comment Editing Methods
+window.toggleEditComment = function(postId, commentId) {
+  const container = document.getElementById(`comment-body-container-${commentId}`);
+  const post = state.posts.find(p => p.id === postId);
+  if (!post) return;
+  const comment = post.comments.find(c => c.id === commentId);
+  if (!comment) return;
+  
+  container.innerHTML = `
+    <div class="comment-edit-container">
+      <input type="text" class="input-control comment-edit-input" id="edit-comment-input-${commentId}" value="${escapeHtml(comment.comment)}" required>
+      <div class="comment-edit-actions">
+        <button class="btn btn-secondary btn-xs" onclick="cancelEditComment('${postId}', '${commentId}')">取消</button>
+        <button class="btn btn-primary btn-xs" onclick="saveEditComment('${postId}', '${commentId}')">儲存</button>
+      </div>
+    </div>
+  `;
+  document.getElementById(`edit-comment-input-${commentId}`).focus();
+};
+
+window.cancelEditComment = function(postId, commentId) {
+  const container = document.getElementById(`comment-body-container-${commentId}`);
+  const post = state.posts.find(p => p.id === postId);
+  if (!post) return;
+  const comment = post.comments.find(c => c.id === commentId);
+  if (!comment) return;
+  
+  container.innerHTML = `<span class="comment-text" id="comment-text-span-${commentId}">${escapeHtml(comment.comment)}</span>`;
+};
+
+window.saveEditComment = async function(postId, commentId) {
+  const input = document.getElementById(`edit-comment-input-${commentId}`);
+  const newCommentText = input.value.trim();
+  
+  if (!newCommentText) {
+    showToast("留言內容不可為空！", "warning");
+    return;
+  }
+  
+  showToast("正在更新留言...", "warning");
+  
+  try {
+    const payload = {
+      action: 'editComment',
+      commentId: commentId,
+      email: state.currentUser.email,
+      comment: newCommentText
+    };
+    
+    const response = await fetch(state.gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    });
+    
+    const result = await response.json();
+    if (result.success) {
+      showToast("留言已更新！", "success");
+      
+      const post = state.posts.find(p => p.id === postId);
+      if (post) {
+        const comment = post.comments.find(c => c.id === commentId);
+        if (comment) {
+          comment.comment = newCommentText;
+        }
+      }
+      
+      cancelEditComment(postId, commentId);
+      filterAndRenderFeed();
+    } else {
+      showToast(`留言更新失敗: ${result.message}`, "error");
+    }
+  } catch(e) {
+    showToast(`網路錯誤，無法更新留言: ${e.message}`, "error");
+  }
+};
+
+window.deleteComment = async function(postId, commentId) {
+  if (!confirm("您確定要刪除這則留言嗎？（這將無法復原）")) {
+    return;
+  }
+  
+  showToast("正在刪除留言...", "warning");
+  
+  try {
+    const payload = {
+      action: 'deleteComment',
+      commentId: commentId,
+      email: state.currentUser.email
+    };
+    
+    const response = await fetch(state.gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    });
+    
+    const result = await response.json();
+    if (result.success) {
+      showToast("留言已成功刪除！", "success");
+      
+      const post = state.posts.find(p => p.id === postId);
+      if (post) {
+        post.comments = post.comments.filter(c => c.id !== commentId);
+      }
+      
+      filterAndRenderFeed();
+    } else {
+      showToast(`刪除失敗: ${result.message}`, "error");
+    }
+  } catch(e) {
+    showToast(`網路錯誤，無法刪除留言: ${e.message}`, "error");
+  }
+};
+
 // Comments Toggle Visibility
 window.toggleComments = function(postId) {
   const container = document.getElementById(`comments-container-${postId}`);
@@ -778,42 +1033,50 @@ window.toggleComments = function(postId) {
   }
 };
 
-// Emoji Reactions Registration
+// Emoji Reactions (Toggle Support)
 window.submitReaction = async function(postId, emojiKey) {
   const hasReacted = localStorage.getItem(`reacted_${postId}_${emojiKey}`) === 'true';
+  const isRemoving = hasReacted;
   
-  // Limit to single reaction per browser session for neatness
-  if (hasReacted) {
-    showToast("您已經對此貼文表達過該心情囉！", "warning");
-    return;
-  }
-  
-  // UI Snappy Optimistic Update: Increment locally first
+  // UI Snappy Optimistic Update
   const countSpan = document.getElementById(`count-${postId}-${emojiKey}`);
   if (countSpan) {
     const currentCount = parseInt(countSpan.innerText) || 0;
-    countSpan.innerText = currentCount + 1;
-    countSpan.closest('.reaction-btn').classList.add('reacted');
+    if (isRemoving) {
+      countSpan.innerText = Math.max(0, currentCount - 1);
+      countSpan.closest('.reaction-btn').classList.remove('reacted');
+    } else {
+      countSpan.innerText = currentCount + 1;
+      countSpan.closest('.reaction-btn').classList.add('reacted');
+    }
   }
   
   // Save locally
-  localStorage.setItem(`reacted_${postId}_${emojiKey}`, 'true');
+  if (isRemoving) {
+    localStorage.removeItem(`reacted_${postId}_${emojiKey}`);
+  } else {
+    localStorage.setItem(`reacted_${postId}_${emojiKey}`, 'true');
+  }
   
   // Find in memory to keep state updated
   const post = state.posts.find(p => p.id === postId);
   if (post) {
     if (!post.reactions) post.reactions = {};
-    post.reactions[emojiKey] = (post.reactions[emojiKey] || 0) + 1;
+    if (isRemoving) {
+      post.reactions[emojiKey] = Math.max(0, (post.reactions[emojiKey] || 1) - 1);
+    } else {
+      post.reactions[emojiKey] = (post.reactions[emojiKey] || 0) + 1;
+    }
   }
 
   try {
     const payload = {
       action: 'reactPost',
       postId: postId,
-      emoji: emojiKey
+      emoji: emojiKey,
+      isRemoving: isRemoving
     };
     
-    // Async request in background
     const response = await fetch(state.gasUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
@@ -822,11 +1085,10 @@ window.submitReaction = async function(postId, emojiKey) {
     
     const result = await response.json();
     if (!result.success) {
-      console.warn("Server failed to register reaction:", result.message);
+      console.warn("Server failed to update reaction:", result.message);
     }
   } catch(e) {
     console.warn("Reaction API call failed:", e);
-    // Silent fail since it is already incremented in UI
   }
 };
 
@@ -837,7 +1099,6 @@ window.copyImageToClipboard = async function(imageUrl, event) {
   
   try {
     const img = new Image();
-    // Enable CORS loading
     img.crossOrigin = "anonymous";
     img.src = imageUrl;
     
@@ -849,14 +1110,12 @@ window.copyImageToClipboard = async function(imageUrl, event) {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0);
         
-        // Export to PNG blob
         canvas.toBlob(async (blob) => {
           if (!blob) {
             fallbackCopyUrl(imageUrl);
             return;
           }
           try {
-            // Write binary to clipboard
             const item = new ClipboardItem({ [blob.type]: blob });
             await navigator.clipboard.write([item]);
             showToast("圖片已成功複製至剪貼簿！可以直接貼上傳送 (Ctrl+V)", "success");
@@ -951,7 +1210,6 @@ function formatTime(isoString) {
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     
-    // Format absolute time like "6/12 11:58"
     const timeOptions = { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
     const absoluteTime = date.toLocaleDateString('zh-TW', timeOptions);
     
@@ -959,7 +1217,6 @@ function formatTime(isoString) {
     if (diffMins < 60) return `${diffMins} 分鐘前 (${absoluteTime})`;
     if (diffHours < 24) return `${diffHours} 小時前 (${absoluteTime})`;
     
-    // If more than 24 hours, display full date and time: "2026年6月12日 11:58"
     return date.toLocaleDateString('zh-TW', {
       year: 'numeric',
       month: 'long',
