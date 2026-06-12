@@ -179,22 +179,53 @@ function registerEventListeners() {
 
   // Clipboard Paste (Ctrl+V) support on Upload Tab
   document.addEventListener('paste', (e) => {
-    if (state.currentTab !== 'upload' || !state.currentUser) return;
+    if (state.currentTab !== 'upload') return;
     
-    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-    for (let item of items) {
-      if (item.kind === 'file' && item.type.startsWith('image/')) {
-        const file = item.getAsFile();
-        
-        const dataTransfer = new DataTransfer();
-        dataTransfer.items.add(file);
-        el.fileInput.files = dataTransfer.files;
-        
-        handleFileSelect();
-        showToast("已成功貼上剪貼簿中的圖片！", "success");
-        e.preventDefault();
-        break;
+    // Check if clipboard contains an image file
+    const items = e.clipboardData.items || [];
+    const files = e.clipboardData.files || [];
+    const hasImage = Array.from(items).some(item => item.kind === 'file' && item.type.startsWith('image/')) 
+                  || Array.from(files).some(file => file.type.startsWith('image/'));
+                  
+    if (!hasImage) return; // Ignore if not pasting an image
+    
+    if (!state.currentUser) {
+      showToast("請先登入會員再貼上圖片！", "warning");
+      openAuthModal('login');
+      e.preventDefault();
+      return;
+    }
+    
+    let imageFile = null;
+    
+    // Method 1: Check files directly (compatible with copying files from file explorer)
+    if (files.length > 0) {
+      for (let file of files) {
+        if (file.type.startsWith('image/')) {
+          imageFile = file;
+          break;
+        }
       }
+    }
+    
+    // Method 2: Check items (compatible with screenshots and browser images)
+    if (!imageFile && items.length > 0) {
+      for (let item of items) {
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          imageFile = item.getAsFile();
+          break;
+        }
+      }
+    }
+    
+    if (imageFile) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(imageFile);
+      el.fileInput.files = dataTransfer.files;
+      
+      handleFileSelect();
+      showToast("已成功貼上剪貼簿中的圖片！", "success");
+      e.preventDefault();
     }
   });
 }
