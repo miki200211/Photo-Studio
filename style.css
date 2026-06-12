@@ -1035,14 +1035,16 @@ footer.app-footer {
 .layout-btn {
   background: none;
   border: none;
-  font-family: var(--font-title);
-  font-weight: 500;
-  font-size: 0.85rem;
   color: var(--text-secondary);
-  padding: 0.35rem 0.75rem;
-  border-radius: var(--radius-full);
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  border-radius: 50%;
   cursor: pointer;
   transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .layout-btn:hover {
@@ -1053,7 +1055,47 @@ footer.app-footer {
 .layout-btn.active {
   color: white;
   background-color: var(--primary);
-  font-weight: 600;
+}
+
+/* Grid Icon Miniature Replicas */
+.grid-icon {
+  display: grid;
+  gap: 2px;
+  width: 16px;
+  height: 16px;
+}
+
+.grid-icon span {
+  background-color: currentColor;
+  border-radius: 1px;
+  transition: var(--transition);
+}
+
+/* 2 Columns Icon */
+.icon-cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+  padding: 1px 0;
+}
+.icon-cols-2 span {
+  height: 14px;
+}
+
+/* 4 Columns Icon */
+.icon-cols-4 {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+.icon-cols-4 span {
+  height: 7px;
+}
+
+/* 6 Columns Icon */
+.icon-cols-6 {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+.icon-cols-6 span {
+  height: 7px;
 }
 
 /* Dynamic Width for Main Container */

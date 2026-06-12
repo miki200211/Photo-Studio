@@ -62,9 +62,21 @@
         <div style="display: flex; align-items: center; gap: 0.75rem;">
           <div class="layout-selector">
             <span class="layout-label">排版：</span>
-            <button class="layout-btn active" data-cols="2">2 行</button>
-            <button class="layout-btn" data-cols="4">4 行</button>
-            <button class="layout-btn" data-cols="6">6 行</button>
+            <button class="layout-btn active" data-cols="2" title="大圖排版 (2行)">
+              <div class="grid-icon icon-cols-2">
+                <span></span><span></span>
+              </div>
+            </button>
+            <button class="layout-btn" data-cols="4" title="中圖排版 (4行)">
+              <div class="grid-icon icon-cols-4">
+                <span></span><span></span><span></span><span></span>
+              </div>
+            </button>
+            <button class="layout-btn" data-cols="6" title="小圖排版 (6行)">
+              <div class="grid-icon icon-cols-6">
+                <span></span><span></span><span></span><span></span><span></span><span></span>
+              </div>
+            </button>
           </div>
           <button class="btn btn-outline btn-icon" id="refresh-feed-btn" title="重新整理">
             <i class="fas fa-sync-alt"></i>
