@@ -865,15 +865,22 @@ function formatTime(isoString) {
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     
-    if (diffMins < 1) return '剛剛';
-    if (diffMins < 60) return `${diffMins} 分鐘前`;
-    if (diffHours < 24) return `${diffHours} 小時前`;
+    // Format absolute time like "6/12 11:58"
+    const timeOptions = { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
+    const absoluteTime = date.toLocaleDateString('zh-TW', timeOptions);
     
+    if (diffMins < 1) return `剛剛 (${absoluteTime})`;
+    if (diffMins < 60) return `${diffMins} 分鐘前 (${absoluteTime})`;
+    if (diffHours < 24) return `${diffHours} 小時前 (${absoluteTime})`;
+    
+    // If more than 24 hours, display full date and time: "2026年6月12日 11:58"
     return date.toLocaleDateString('zh-TW', {
+      year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      hour12: false
     });
   } catch(e) {
     return '未知時間';
