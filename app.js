@@ -2,8 +2,8 @@
 let state = {
   currentUser: null,
   currentTab: 'feed',
-  apiMode: 'demo', // 'demo' or 'gas'
-  gasUrl: '',
+  apiMode: 'gas', // 'demo' or 'gas'
+  gasUrl: 'https://script.google.com/macros/s/AKfycbzBbDpiPkQj58vqJjgDZ00VJcGtBudnq8KFwvCZKVXTHRXlMGi7Lvz8hYZkY0OhBRjB/exec',
   posts: []
 };
 
@@ -126,8 +126,8 @@ function initAppState() {
   }
   
   // Load Settings
-  state.gasUrl = localStorage.getItem('gas_url') || '';
-  state.apiMode = localStorage.getItem('api_mode') || 'demo';
+  state.gasUrl = localStorage.getItem('gas_url') || state.gasUrl || '';
+  state.apiMode = localStorage.getItem('api_mode') || state.apiMode || 'demo';
   
   el.gasUrlInput.value = state.gasUrl;
   
