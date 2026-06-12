@@ -176,6 +176,27 @@ function registerEventListeners() {
 
   el.uploadForm.addEventListener('submit', handleUploadSubmit);
   el.refreshFeedBtn.addEventListener('click', () => loadFeed());
+
+  // Clipboard Paste (Ctrl+V) support on Upload Tab
+  document.addEventListener('paste', (e) => {
+    if (state.currentTab !== 'upload' || !state.currentUser) return;
+    
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (let item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        el.fileInput.files = dataTransfer.files;
+        
+        handleFileSelect();
+        showToast("已成功貼上剪貼簿中的圖片！", "success");
+        e.preventDefault();
+        break;
+      }
+    }
+  });
 }
 
 // 3. UI Helpers
