@@ -3,7 +3,17 @@ let state = {
   currentUser: null,
   currentTab: 'feed',
   gasUrl: 'https://script.google.com/macros/s/AKfycbzBbDpiPkQj58vqJjgDZ00VJcGtBudnq8KFwvCZKVXTHRXlMGi7Lvz8hYZkY0OhBRjB/exec',
-  posts: []
+  posts: [],
+  searchQuery: ''
+};
+
+// Emoji Definitions
+const EMOJIS = {
+  like: { emoji: '👍', label: '讚' },
+  heart: { emoji: '❤️', label: '愛心' },
+  laugh: { emoji: '😂', label: '哈' },
+  wow: { emoji: '😮', label: '哇' },
+  party: { emoji: '🎉', label: '慶祝' }
 };
 
 // Document Elements
@@ -21,6 +31,8 @@ const el = {
   // Feed View
   feedGrid: document.getElementById('feed-grid'),
   refreshFeedBtn: document.getElementById('refresh-feed-btn'),
+  searchInput: document.getElementById('search-input'),
+  clearSearchBtn: document.getElementById('clear-search-btn'),
   
   // Upload View
   uploadForm: document.getElementById('upload-form'),
@@ -53,12 +65,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // 1. Initialize State
 function initAppState() {
-  // Load Session User
   const cachedUser = localStorage.getItem('user_session');
   if (cachedUser) {
     state.currentUser = JSON.parse(cachedUser);
   }
-  
   updateAuthUI();
 }
 
@@ -72,6 +82,20 @@ function registerEventListeners() {
     });
   });
 
+  // Search Bar
+  el.searchInput.addEventListener('input', (e) => {
+    state.searchQuery = e.target.value;
+    el.clearSearchBtn.style.display = state.searchQuery ? 'flex' : 'none';
+    filterAndRenderFeed();
+  });
+
+  el.clearSearchBtn.addEventListener('click', () => {
+    el.searchInput.value = '';
+    state.searchQuery = '';
+    el.clearSearchBtn.style.display = 'none';
+    filterAndRenderFeed();
+  });
+
   // Authentication Modals
   el.loginBtn.addEventListener('click', () => openAuthModal('login'));
   el.registerBtn.addEventListener('click', () => openAuthModal('register'));
@@ -79,7 +103,6 @@ function registerEventListeners() {
   el.modalClose.addEventListener('click', closeAuthModal);
   el.authForm.addEventListener('submit', handleAuthSubmit);
   
-  // Modal Switch between Login / Register
   el.modalSwitchMode.addEventListener('click', () => {
     const isLogin = el.authModalTitle.innerText === '會員登入';
     openAuthModal(isLogin ? 'register' : 'login');
@@ -89,7 +112,6 @@ function registerEventListeners() {
   el.dropzone.addEventListener('click', () => el.fileInput.click());
   el.fileInput.addEventListener('change', handleFileSelect);
   
-  // Drag and Drop Events
   ['dragenter', 'dragover'].forEach(eventName => {
     el.dropzone.addEventListener(eventName, (e) => {
       e.preventDefault();
@@ -126,7 +148,6 @@ function registerEventListeners() {
 function switchTab(view) {
   state.currentTab = view;
   
-  // Update nav UI
   el.navTabs.forEach(tab => {
     if (tab.getAttribute('data-view') === view) {
       tab.classList.add('active');
@@ -135,7 +156,6 @@ function switchTab(view) {
     }
   });
 
-  // Switch view section
   el.viewSections.forEach(section => {
     if (section.id === `${view}-view`) {
       section.classList.add('active');
@@ -144,7 +164,6 @@ function switchTab(view) {
     }
   });
 
-  // Extra triggers on tab change
   if (view === 'feed') {
     loadFeed();
   } else if (view === 'upload') {
@@ -170,7 +189,6 @@ function updateAuthUI() {
     document.getElementById('upload-login-wrapper').style.display = 'flex';
   }
   
-  // Refresh comment input states
   document.querySelectorAll('.add-comment-input').forEach(input => {
     if (state.currentUser) {
       input.placeholder = "寫下你的留言...";
@@ -196,7 +214,7 @@ function checkUploadAccess() {
   }
 }
 
-// Toast Notification System
+// Toast Notification
 function showToast(message, type = 'success') {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
@@ -241,7 +259,6 @@ function openAuthModal(mode) {
   }
 }
 
-// Close Auth Modal
 function closeAuthModal() {
   el.authModal.classList.remove('active');
 }
@@ -265,10 +282,9 @@ async function handleAuthSubmit(e) {
       name
     };
     
-    // Call Google Apps Script Web App
     const response = await fetch(state.gasUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' }, // Avoid CORS Preflight
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(payload)
     });
     
@@ -315,7 +331,6 @@ function handleFileSelect() {
 
   const reader = new FileReader();
   reader.onload = (e) => {
-    // Show image preview
     el.previewImage.src = e.target.result;
     el.previewContainer.style.display = 'block';
     el.uploadPlaceholder.style.display = 'none';
@@ -330,9 +345,6 @@ function clearUploadPreview() {
   el.uploadPlaceholder.style.display = 'block';
 }
 
-/**
- * Resizes and compresses image to reduce base64 footprint
- */
 function compressImage(file, maxWidth = 800, maxHeight = 800, quality = 0.7) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -345,7 +357,6 @@ function compressImage(file, maxWidth = 800, maxHeight = 800, quality = 0.7) {
         let width = img.width;
         let height = img.height;
 
-        // Calculate new dimensions
         if (width > height) {
           if (width > maxWidth) {
             height = Math.round((height * maxWidth) / width);
@@ -363,7 +374,6 @@ function compressImage(file, maxWidth = 800, maxHeight = 800, quality = 0.7) {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Get compressed base64
         const compressedBase64 = canvas.toDataURL(file.type || 'image/jpeg', quality);
         resolve({
           base64: compressedBase64,
@@ -399,9 +409,7 @@ async function handleUploadSubmit(e) {
   el.uploadProgress.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 壓縮圖片中...';
 
   try {
-    // Compress image to save bandwidth and storage space
     const compressed = await compressImage(file);
-    
     el.uploadProgress.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> 正在傳送至 Google Drive...';
     
     const payload = {
@@ -439,9 +447,8 @@ async function handleUploadSubmit(e) {
   }
 }
 
-// 7. Feed Loading & Rendering
+// 7. Feed Loading, Filtering & Rendering
 async function loadFeed() {
-  // Show skeleton loading animations
   renderSkeletons();
   
   try {
@@ -450,7 +457,7 @@ async function loadFeed() {
     
     if (resData.success) {
       state.posts = resData.data;
-      renderFeed();
+      filterAndRenderFeed();
     } else {
       throw new Error(resData.message);
     }
@@ -460,11 +467,38 @@ async function loadFeed() {
       <div style="grid-column: 1 / -1; text-align: center; padding: 4rem 2rem; color: var(--text-secondary);">
         <i class="fas fa-exclamation-triangle" style="font-size: 4rem; color: var(--error); margin-bottom: 1.5rem;"></i>
         <h3 style="font-family: var(--font-title); font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem;">連線異常</h3>
-        <p style="font-size: 0.9rem;">無法讀取雲端相簿資料，請確認您的 Google Apps Script 後端部署是否正常。</p>
-        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">詳細錯誤：${error.message}</p>
+        <p style="font-size: 0.9rem;">無法讀取雲端相簿資料，請確認您的 Google Apps Script 後端部署是否正常並已手動通過權限授權。</p>
+        <p style="font-size: 0.8rem; color: var(--text-muted); text-top: 0.5rem;">詳細錯誤：${error.message}</p>
       </div>
     `;
   }
+}
+
+function filterAndRenderFeed() {
+  const query = state.searchQuery.trim().toLowerCase();
+  
+  if (!query) {
+    renderFeed(state.posts);
+    return;
+  }
+  
+  const filtered = state.posts.filter(post => {
+    const desc = (post.description || '').toLowerCase();
+    const author = (post.name || '').toLowerCase();
+    
+    if (query.startsWith('@')) {
+      const cleanName = query.substring(1);
+      return desc.includes(query) || author.includes(cleanName);
+    }
+    
+    if (query.startsWith('#')) {
+      return desc.includes(query);
+    }
+    
+    return desc.includes(query) || author.includes(query);
+  });
+  
+  renderFeed(filtered);
 }
 
 function renderSkeletons() {
@@ -484,29 +518,74 @@ function renderSkeletons() {
   `).join('');
 }
 
-function renderFeed() {
-  if (state.posts.length === 0) {
+// Highlights @names and #tags
+function parseMentions(text) {
+  if (!text) return '';
+  let escaped = escapeHtml(text);
+  
+  // Replace @name
+  escaped = escaped.replace(/@([^\s#@,.;!?:()\[\]{}""'']+)/g, (match, name) => {
+    return `<span class="tag-mention" onclick="setSearchFilter('@${name}', event)">@${name}</span>`;
+  });
+  
+  // Replace #tag
+  escaped = escaped.replace(/#([^\s#@,.;!?:()\[\]{}""'']+)/g, (match, tag) => {
+    return `<span class="tag-hash" onclick="setSearchFilter('#${tag}', event)">#${tag}</span>`;
+  });
+  
+  return escaped;
+}
+
+window.setSearchFilter = function(filterVal, event) {
+  if (event) event.stopPropagation();
+  el.searchInput.value = filterVal;
+  state.searchQuery = filterVal;
+  el.clearSearchBtn.style.display = 'flex';
+  filterAndRenderFeed();
+};
+
+function renderFeed(postsToRender) {
+  if (postsToRender.length === 0) {
+    const isSearching = state.searchQuery.trim().length > 0;
     el.feedGrid.innerHTML = `
       <div style="grid-column: 1 / -1; text-align: center; padding: 4rem 2rem; color: var(--text-secondary);">
-        <i class="far fa-images" style="font-size: 4rem; color: var(--text-muted); margin-bottom: 1.5rem;"></i>
-        <h3 style="font-family: var(--font-title); font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem;">目前沒有任何動態</h3>
-        <p style="font-size: 0.9rem;">成為第一個上傳圖片並與大家分享的人吧！</p>
-        <button class="btn btn-primary" style="margin-top: 1.5rem;" onclick="switchTab('upload')">
-          <i class="fas fa-plus"></i> 發布新動態
-        </button>
+        <i class="${isSearching ? 'fas fa-search-minus' : 'far fa-images'}" style="font-size: 4rem; color: var(--text-muted); margin-bottom: 1.5rem;"></i>
+        <h3 style="font-family: var(--font-title); font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem;">
+          ${isSearching ? '找不到符合搜尋的動態' : '目前沒有任何動態'}
+        </h3>
+        <p style="font-size: 0.9rem;">
+          ${isSearching ? '請嘗試更換搜尋關鍵字或 @姓名、#標籤' : '成為第一個上傳圖片並與大家分享的人吧！'}
+        </p>
+        ${isSearching 
+          ? `<button class="btn btn-secondary" style="margin-top: 1.5rem;" onclick="clearSearchFilter()">重設搜尋</button>`
+          : `<button class="btn btn-primary" style="margin-top: 1.5rem;" onclick="switchTab('upload')"><i class="fas fa-plus"></i> 發布新動態</button>`
+        }
       </div>
     `;
     return;
   }
 
-  el.feedGrid.innerHTML = state.posts.map(post => {
+  el.feedGrid.innerHTML = postsToRender.map(post => {
     const timeFormatted = formatTime(post.createdAt);
     const commentsList = post.comments || [];
     const isCommentsVisible = localStorage.getItem(`comments_visible_${post.id}`) === 'true';
-    
     const initials = (post.name || "?").substring(0, 2);
     
-    // Check if user is logged in to construct action form
+    // 1. Emoji Reactions HTML
+    const reactions = post.reactions || {};
+    const reactionsHtml = Object.keys(EMOJIS).map(key => {
+      const info = EMOJIS[key];
+      const count = reactions[key] || 0;
+      const hasReacted = localStorage.getItem(`reacted_${post.id}_${key}`) === 'true';
+      return `
+        <button class="reaction-btn ${hasReacted ? 'reacted' : ''}" onclick="submitReaction('${post.id}', '${key}')" title="${info.label}">
+          <span class="reaction-emoji">${info.emoji}</span>
+          <span class="reaction-count" id="count-${post.id}-${key}">${count}</span>
+        </button>
+      `;
+    }).join('');
+
+    // 2. Comments form HTML
     const commentFormHtml = state.currentUser 
       ? `
         <form class="add-comment-form" onsubmit="submitComment(event, '${post.id}')">
@@ -522,6 +601,7 @@ function renderFeed() {
         </div>
       `;
 
+    // 3. Comments container HTML
     const commentsContainerHtml = `
       <div class="comments-container" id="comments-container-${post.id}" style="display: ${isCommentsVisible ? 'flex' : 'none'};">
         ${commentsList.length === 0 
@@ -558,21 +638,42 @@ function renderFeed() {
         </div>
         
         <div class="post-content">
-          <p class="post-description">${escapeHtml(post.description)}</p>
+          <p class="post-description">${parseMentions(post.description)}</p>
+        </div>
+        
+        <!-- Emoji Reactions Panel -->
+        <div class="reactions-panel">
+          ${reactionsHtml}
+        </div>
+        
+        <!-- Post Utility Action Buttons -->
+        <div class="post-actions-row">
+          <button class="action-btn-link" onclick="toggleComments('${post.id}')">
+            <i class="far fa-comment-alt"></i>
+            <span id="comment-count-${post.id}">${commentsList.length} 則留言</span>
+            <i class="fas fa-chevron-${isCommentsVisible ? 'up' : 'down'}" style="margin-left: 0.25rem;" id="comment-chevron-${post.id}"></i>
+          </button>
+          
+          <button class="action-btn-link" onclick="copyImageToClipboard('${post.imageUrl}', event)">
+            <i class="far fa-copy"></i>
+            <span>複製圖片</span>
+          </button>
         </div>
         
         <div class="post-comments-section">
-          <button class="comments-toggle" onclick="toggleComments('${post.id}')">
-            <i class="far fa-comment-alt"></i>
-            <span id="comment-count-${post.id}">${commentsList.length} 則留言</span>
-            <i class="fas fa-chevron-${isCommentsVisible ? 'up' : 'down'}" style="margin-left: auto;" id="comment-chevron-${post.id}"></i>
-          </button>
           ${commentsContainerHtml}
         </div>
       </article>
     `;
   }).join('');
 }
+
+window.clearSearchFilter = function() {
+  el.searchInput.value = '';
+  state.searchQuery = '';
+  el.clearSearchBtn.style.display = 'none';
+  filterAndRenderFeed();
+};
 
 // Comments Toggle Visibility
 window.toggleComments = function(postId) {
@@ -590,6 +691,117 @@ window.toggleComments = function(postId) {
     localStorage.setItem(`comments_visible_${postId}`, 'false');
   }
 };
+
+// Emoji Reactions Registration
+window.submitReaction = async function(postId, emojiKey) {
+  const hasReacted = localStorage.getItem(`reacted_${postId}_${emojiKey}`) === 'true';
+  
+  // Limit to single reaction per browser session for neatness
+  if (hasReacted) {
+    showToast("您已經對此貼文表達過該心情囉！", "warning");
+    return;
+  }
+  
+  // UI Snappy Optimistic Update: Increment locally first
+  const countSpan = document.getElementById(`count-${postId}-${emojiKey}`);
+  if (countSpan) {
+    const currentCount = parseInt(countSpan.innerText) || 0;
+    countSpan.innerText = currentCount + 1;
+    countSpan.closest('.reaction-btn').classList.add('reacted');
+  }
+  
+  // Save locally
+  localStorage.setItem(`reacted_${postId}_${emojiKey}`, 'true');
+  
+  // Find in memory to keep state updated
+  const post = state.posts.find(p => p.id === postId);
+  if (post) {
+    if (!post.reactions) post.reactions = {};
+    post.reactions[emojiKey] = (post.reactions[emojiKey] || 0) + 1;
+  }
+
+  try {
+    const payload = {
+      action: 'reactPost',
+      postId: postId,
+      emoji: emojiKey
+    };
+    
+    // Async request in background
+    const response = await fetch(state.gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    });
+    
+    const result = await response.json();
+    if (!result.success) {
+      console.warn("Server failed to register reaction:", result.message);
+    }
+  } catch(e) {
+    console.warn("Reaction API call failed:", e);
+    // Silent fail since it is already incremented in UI
+  }
+};
+
+// Clipboard copy image helper
+window.copyImageToClipboard = async function(imageUrl, event) {
+  if (event) event.stopPropagation();
+  showToast("正在處理圖片，請稍候...", "warning");
+  
+  try {
+    const img = new Image();
+    // Enable CORS loading
+    img.crossOrigin = "anonymous";
+    img.src = imageUrl;
+    
+    img.onload = function() {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        
+        // Export to PNG blob
+        canvas.toBlob(async (blob) => {
+          if (!blob) {
+            fallbackCopyUrl(imageUrl);
+            return;
+          }
+          try {
+            // Write binary to clipboard
+            const item = new ClipboardItem({ [blob.type]: blob });
+            await navigator.clipboard.write([item]);
+            showToast("圖片已成功複製至剪貼簿！可以直接貼上傳送 (Ctrl+V)", "success");
+          } catch (err) {
+            console.warn("ClipboardItem write failed, copying URL instead:", err);
+            fallbackCopyUrl(imageUrl);
+          }
+        }, 'image/png');
+      } catch(e) {
+        console.warn("Canvas drawing error, copying URL instead:", e);
+        fallbackCopyUrl(imageUrl);
+      }
+    };
+    
+    img.onerror = function() {
+      fallbackCopyUrl(imageUrl);
+    };
+  } catch(error) {
+    fallbackCopyUrl(imageUrl);
+  }
+};
+
+async function fallbackCopyUrl(imageUrl) {
+  try {
+    await navigator.clipboard.writeText(imageUrl);
+    showToast("圖片檔案受瀏覽器安全限制，已複製圖片網址至剪貼簿！", "success");
+  } catch (err) {
+    console.error("Copy failed:", err);
+    showToast("複製失敗，您的瀏覽器拒絕了剪貼簿存取", "error");
+  }
+}
 
 async function submitComment(event, postId) {
   event.preventDefault();
@@ -624,16 +836,14 @@ async function submitComment(event, postId) {
       showToast("留言發表成功！", "success");
       input.value = '';
       
-      // Update local state dynamically to avoid full feed reload
       const post = state.posts.find(p => p.id === postId);
       if (post) {
         if (!post.comments) post.comments = [];
         post.comments.push(result.comment);
       }
       
-      // Keep visible
       localStorage.setItem(`comments_visible_${postId}`, 'true');
-      renderFeed();
+      filterAndRenderFeed();
     } else {
       showToast(`留言失敗: ${result.message}`, "error");
     }
@@ -659,7 +869,6 @@ function formatTime(isoString) {
     if (diffMins < 60) return `${diffMins} 分鐘前`;
     if (diffHours < 24) return `${diffHours} 小時前`;
     
-    // Normal date output
     return date.toLocaleDateString('zh-TW', {
       month: 'long',
       day: 'numeric',

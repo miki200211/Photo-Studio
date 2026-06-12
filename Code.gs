@@ -25,7 +25,7 @@ function doGet(e) {
 }
 
 /**
- * POST requests handler (Register, Login, Upload, Comment)
+ * POST requests handler (Register, Login, Upload, Comment, React)
  * Note: Use Content-Type "text/plain" in client requests to bypass CORS preflight checks.
  */
 function doPost(e) {
@@ -46,6 +46,8 @@ function doPost(e) {
       response = handleUploadPost(payload);
     } else if (action === "addComment") {
       response = handleAddComment(payload);
+    } else if (action === "reactPost") {
+      response = handleReactPost(payload);
     } else if (action === "getFeed") {
       response = { success: true, data: getFeedData() };
     } else {
@@ -80,10 +82,7 @@ function getOrCreateFolder(parentFolder, folderName) {
  * DB Helper: Get or create the main Photo Studio folder structure
  */
 function getPhotoStudioFolderStructure() {
-  // 1. Get or create root "Photo Studio" folder
   var mainFolder = getOrCreateFolder(null, "Photo Studio");
-  
-  // 2. Get or create subfolders
   var imageFolder = getOrCreateFolder(mainFolder, "Photo Studio Database");
   var messengerFolder = getOrCreateFolder(mainFolder, "Photo Studio Messenger");
   var accountFolder = getOrCreateFolder(mainFolder, "Account");
@@ -103,14 +102,12 @@ function getAccountSpreadsheet() {
   var structure = getPhotoStudioFolderStructure();
   var accountFolder = structure.account;
   
-  // Look for spreadsheet inside the Account folder
   var files = accountFolder.getFilesByName("Account Database");
   if (files.hasNext()) {
     var file = files.next();
     return SpreadsheetApp.openById(file.getId());
   }
   
-  // Create spreadsheet and move it to Account folder
   var ss = SpreadsheetApp.create("Account Database");
   var sheet = ss.getActiveSheet();
   sheet.setName("Users");
@@ -129,20 +126,28 @@ function getMessengerSpreadsheet() {
   var structure = getPhotoStudioFolderStructure();
   var messengerFolder = structure.messenger;
   
-  // Look for spreadsheet inside the Messenger folder
   var files = messengerFolder.getFilesByName("Messenger Database");
   if (files.hasNext()) {
     var file = files.next();
-    return SpreadsheetApp.openById(file.getId());
+    var ss = SpreadsheetApp.openById(file.getId());
+    
+    // Auto-update check: ensure Reactions column exists in Posts sheet
+    var postsSheet = ss.getSheetByName("Posts");
+    if (postsSheet && postsSheet.getLastRow() > 0) {
+      var range = postsSheet.getRange(1, 8);
+      if (range.getValue() !== "Reactions") {
+        range.setValue("Reactions");
+      }
+    }
+    return ss;
   }
   
-  // Create spreadsheet and move it to Messenger folder
   var ss = SpreadsheetApp.create("Messenger Database");
   
-  // Setup Posts sheet
+  // Setup Posts sheet (8 columns: Reactions added)
   var postsSheet = ss.getActiveSheet();
   postsSheet.setName("Posts");
-  postsSheet.appendRow(["Id", "Email", "Name", "ImageUrl", "DriveFileId", "Description", "CreatedAt"]);
+  postsSheet.appendRow(["Id", "Email", "Name", "ImageUrl", "DriveFileId", "Description", "CreatedAt", "Reactions"]);
   
   // Setup Comments sheet
   var commentsSheet = ss.insertSheet("Comments");
@@ -168,7 +173,7 @@ function getDriveFolder() {
 function handleRegister(payload) {
   var email = (payload.email || "").trim().toLowerCase();
   var password = payload.password || "";
-  var name = (payload.name || "").trim(); // This is the pseudonym / nickname
+  var name = (payload.name || "").trim();
   
   if (!email || !password || !name) {
     return { success: false, message: "Missing required fields" };
@@ -177,7 +182,6 @@ function handleRegister(payload) {
   var ss = getAccountSpreadsheet();
   var sheet = ss.getSheetByName("Users");
   
-  // Check if email already registered
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
     if (data[i][0].toString().toLowerCase() === email) {
@@ -232,27 +236,23 @@ function handleUploadPost(payload) {
     return { success: false, message: "Author details and image file are required" };
   }
   
-  // Clean base64 string
   var base64Data = fileBase64.replace(/^data:image\/\w+;base64,/, "");
   var decoded = Utilities.base64Decode(base64Data);
   var blob = Utilities.newBlob(decoded, mimeType, fileName);
   
-  // Save to Drive (Photo Studio Database folder)
   var folder = getDriveFolder();
   var file = folder.createFile(blob);
-  
-  // Set sharing to public viewable
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   
-  // Construct the URL to view the image
   var driveFileId = file.getId();
   var imageUrl = "https://lh3.googleusercontent.com/d/" + driveFileId;
   
-  // Write to Spreadsheet
   var ss = getMessengerSpreadsheet();
   var sheet = ss.getSheetByName("Posts");
   
   var postId = "post_" + new Date().getTime() + "_" + Math.floor(Math.random() * 1000);
+  
+  // Appends with empty reactions JSON "{}"
   sheet.appendRow([
     postId,
     email,
@@ -260,7 +260,8 @@ function handleUploadPost(payload) {
     imageUrl,
     driveFileId,
     description,
-    new Date().toISOString()
+    new Date().toISOString(),
+    "{}"
   ]);
   
   return { 
@@ -272,7 +273,8 @@ function handleUploadPost(payload) {
       name: name,
       imageUrl: imageUrl,
       description: description,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      reactions: {}
     }
   };
 }
@@ -318,7 +320,61 @@ function handleAddComment(payload) {
 }
 
 /**
- * Read Helper: Fetch feed posts and their comments
+ * Action Handler: React to Post
+ */
+function handleReactPost(payload) {
+  var postId = payload.postId;
+  var emoji = payload.emoji;
+  
+  if (!postId || !emoji) {
+    return { success: false, message: "Missing post reference or emoji key" };
+  }
+  
+  var ss = getMessengerSpreadsheet();
+  var sheet = ss.getSheetByName("Posts");
+  var data = sheet.getDataRange().getValues();
+  
+  var foundRow = -1;
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0].toString() === postId) {
+      foundRow = i + 1; // 1-indexed spreadsheet row
+      break;
+    }
+  }
+  
+  if (foundRow === -1) {
+    return { success: false, message: "Post not found" };
+  }
+  
+  var cell = sheet.getRange(foundRow, 8);
+  var val = cell.getValue().toString().trim();
+  var reactions = {};
+  
+  if (val !== "") {
+    try {
+      reactions = JSON.parse(val);
+    } catch(e) {
+      reactions = {};
+    }
+  }
+  
+  if (!reactions[emoji]) {
+    reactions[emoji] = 0;
+  }
+  reactions[emoji] = reactions[emoji] + 1;
+  
+  cell.setValue(JSON.stringify(reactions));
+  
+  return { 
+    success: true, 
+    message: "Reaction saved", 
+    postId: postId, 
+    reactions: reactions 
+  };
+}
+
+/**
+ * Read Helper: Fetch feed posts, their comments and reactions
  */
 function getFeedData() {
   var ss = getMessengerSpreadsheet();
@@ -330,8 +386,15 @@ function getFeedData() {
   var comments = [];
   
   if (postsSheet && postsSheet.getLastRow() > 1) {
-    var postsData = postsSheet.getRange(2, 1, postsSheet.getLastRow() - 1, 7).getValues();
+    var postsData = postsSheet.getRange(2, 1, postsSheet.getLastRow() - 1, 8).getValues();
     posts = postsData.map(function(row) {
+      var reactionsVal = row[7] ? row[7].toString().trim() : "{}";
+      var reactions = {};
+      try {
+        reactions = JSON.parse(reactionsVal);
+      } catch(e) {
+        reactions = {};
+      }
       return {
         id: row[0].toString(),
         email: row[1].toString(),
@@ -339,7 +402,8 @@ function getFeedData() {
         imageUrl: row[3].toString(),
         driveFileId: row[4].toString(),
         description: row[5].toString(),
-        createdAt: row[6].toString()
+        createdAt: row[6].toString(),
+        reactions: reactions
       };
     });
     // Sort posts: newest first
