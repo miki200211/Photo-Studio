@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Studio - 創意圖片分享平台</title>
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="Photo Studio 是一個連接 Google Drive 與 Google Apps Script 的雲端相簿與留言平台。輕鬆上傳圖片、寫下心情、並與大家即時留言互動。">
+  <meta name="author" content="Antigravity Pair">
+  
+  <!-- Styling and Fonts -->
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+  <!-- Premium Sticky Header -->
+  <header>
+    <div class="header-container">
+      <a href="#" class="logo" onclick="switchTab('feed')">
+        <i class="fas fa-camera-retro"></i>
+        <span>Photo Studio</span>
+      </a>
+      
+      <!-- Navigation Menu -->
+      <nav>
+        <button class="nav-tab active" data-view="feed" id="nav-feed-tab">
+          <i class="fas fa-images"></i> 探索動態
+        </button>
+        <button class="nav-tab" data-view="upload" id="nav-upload-tab">
+          <i class="fas fa-cloud-upload-alt"></i> 發布分享
+        </button>
+      </nav>
+      
+      <!-- Authentication / User Actions -->
+      <div class="user-controls">
+        <div class="user-badge" id="user-badge" style="display: none;">
+          <i class="fas fa-user-circle"></i>
+          <span id="user-name-span">使用者</span>
+        </div>
+        <button class="btn btn-secondary" id="login-btn">
+          <i class="fas fa-sign-in-alt"></i> 登入
+        </button>
+        <button class="btn btn-primary" id="register-btn">
+          <i class="fas fa-user-plus"></i> 註冊
+        </button>
+        <button class="btn btn-outline" id="logout-btn" style="display: none;">
+          <i class="fas fa-sign-out-alt"></i> 登出
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main>
+    
+    <!-- Collapsible Settings Panel -->
+    <section class="settings-console" id="settings-console">
+      <div class="settings-header" id="settings-header">
+        <div class="settings-title">
+          <i class="fas fa-cog"></i>
+          <span>系統設定 (Google Apps Script 與 Drive 連接)</span>
+        </div>
+        <i class="fas fa-chevron-down" id="settings-caret"></i>
+      </div>
+      
+      <div class="settings-body collapsed" id="settings-body">
+        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+          本網頁支援 <strong>Demo 演示模式 (LocalStorage)</strong> 與 <strong>實時 API 模式 (Google Apps Script)</strong>。
+        </p>
+        
+        <div class="form-group">
+          <label>連線模式：</label>
+          <div class="mode-selectors">
+            <input type="radio" id="mode-demo" name="apiMode" value="demo" class="mode-radio" checked>
+            <label for="mode-demo" class="mode-label">
+              <i class="fas fa-desktop"></i>
+              <span>Demo 演示模式</span>
+              <span class="badge badge-demo">瀏覽器本機儲存</span>
+            </label>
+            
+            <input type="radio" id="mode-gas" name="apiMode" value="gas" class="mode-radio">
+            <label for="mode-gas" class="mode-label">
+              <i class="fas fa-cloud"></i>
+              <span>GAS 實時模式</span>
+              <span class="badge badge-live">Google 雲端連接</span>
+            </label>
+          </div>
+        </div>
+        
+        <div class="form-group" id="gas-url-group" style="display: none; margin-top: 1rem;">
+          <label for="gas-url-input">Google Apps Script Web App URL：</label>
+          <input type="url" id="gas-url-input" class="input-control" placeholder="https://script.google.com/macros/s/.../exec">
+          <span style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+            請貼上您部署 Google Apps Script 後產生的 Web App URL。詳細設定方式請參考 <a href="README.md" target="_blank" style="color: var(--primary);">說明文件</a>。
+          </span>
+        </div>
+        
+        <button class="btn btn-primary" id="save-settings-btn" style="margin-top: 1rem; width: 100%;">
+          <i class="fas fa-save"></i> 儲存並應用設定
+        </button>
+      </div>
+    </section>
+
+    <!-- VIEW 1: Feed/Posts View -->
+    <section class="view-section active" id="feed-view">
+      <div class="feed-header">
+        <h1>探索社群動態</h1>
+        <button class="btn btn-outline btn-icon" id="refresh-feed-btn" title="重新整理">
+          <i class="fas fa-sync-alt"></i>
+        </button>
+      </div>
+      
+      <!-- Grid container for post cards -->
+      <div class="feed-grid" id="feed-grid">
+        <!-- JS will dynamically render card elements or skeleton loaders here -->
+      </div>
+    </section>
+
+    <!-- VIEW 2: Upload Post View -->
+    <section class="view-section" id="upload-view">
+      
+      <!-- Accessible upload wrapper -->
+      <div class="upload-container" id="upload-form-wrapper">
+        <h2 class="upload-title">分享精彩瞬間</h2>
+        <p class="upload-subtitle">上傳圖片並寫下您的心情故事，將其保存於 Google Drive 中</p>
+        
+        <form id="upload-form">
+          <!-- Dropzone and File Select -->
+          <div class="dropzone-container" id="dropzone">
+            <input type="file" id="file-input" class="file-input" accept="image/*">
+            <div id="upload-placeholder">
+              <i class="fas fa-cloud-upload-alt dropzone-icon"></i>
+              <p class="dropzone-text">拖曳圖片到此處，或點擊選擇檔案</p>
+              <p class="dropzone-hint">支援 JPG, PNG, GIF 格式</p>
+            </div>
+            
+            <div class="preview-container" id="preview-container">
+              <img src="" alt="Image preview" class="preview-image" id="preview-image">
+              <button type="button" class="remove-preview-btn" id="remove-preview-btn" title="移除圖片">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Image Description -->
+          <div class="form-group" style="margin-bottom: 1.5rem;">
+            <label for="upload-description">圖片說明與心情：</label>
+            <textarea id="upload-description" class="input-control" rows="4" placeholder="寫點什麼吧..." required style="resize: vertical; min-height: 100px;"></textarea>
+          </div>
+          
+          <!-- Loading Progress Alert -->
+          <div style="font-size: 0.9rem; color: var(--primary); margin-bottom: 1rem; display: none; text-align: center;" id="upload-progress">
+            <i class="fas fa-spinner fa-spin"></i> 正在處理圖片並上傳...
+          </div>
+          
+          <button type="submit" class="btn btn-primary" id="upload-btn" style="width: 100%; padding: 0.8rem;">
+            <i class="fas fa-paper-plane"></i> 發布動態
+          </button>
+        </form>
+      </div>
+      
+      <!-- Unauthorized Login Prompt -->
+      <div class="upload-login-prompt" id="upload-login-wrapper" style="display: none;">
+        <i class="fas fa-lock"></i>
+        <h3>需要會員登入</h3>
+        <p style="color: var(--text-secondary); font-size: 0.9rem;">發布新的圖片與心情需要先登入您的會員帳號。</p>
+        <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+          <button class="btn btn-primary" onclick="openAuthModal('login')">
+            <i class="fas fa-sign-in-alt"></i> 登入帳號
+          </button>
+          <button class="btn btn-secondary" onclick="openAuthModal('register')">
+            <i class="fas fa-user-plus"></i> 註冊帳號
+          </button>
+        </div>
+      </div>
+      
+    </section>
+
+  </main>
+
+  <!-- Sticky Footer -->
+  <footer class="app-footer">
+    <p>© 2026 Photo Studio. Powered by Google Apps Script & Google Drive.</p>
+  </footer>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Authentication Modal (Login & Register Dialog) -->
+  <div class="modal-overlay" id="auth-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="auth-modal-title">會員登入</h3>
+        <button class="modal-close" id="modal-close"><i class="fas fa-times"></i></button>
+      </div>
+      
+      <form id="auth-form">
+        <div class="modal-body">
+          <!-- Display Name (Registration Only) -->
+          <div class="form-group" id="auth-name-group" style="display: none;">
+            <label for="auth-name">您的名字：</label>
+            <input type="text" id="auth-name" class="input-control" placeholder="請輸入您顯示的名字">
+          </div>
+          
+          <!-- Email Field -->
+          <div class="form-group">
+            <label for="auth-email">電子郵件 Email：</label>
+            <input type="email" id="auth-email" class="input-control" placeholder="example@domain.com" required>
+          </div>
+          
+          <!-- Password Field -->
+          <div class="form-group">
+            <label for="auth-password">密碼 Password：</label>
+            <input type="password" id="auth-password" class="input-control" placeholder="請輸入您的密碼" required minlength="4">
+          </div>
+          
+          <button type="submit" class="btn btn-primary" id="auth-submit-btn" style="width: 100%; margin-top: 0.5rem; padding: 0.75rem;">
+            登入
+          </button>
+        </div>
+      </form>
+      
+      <div class="modal-footer">
+        <span id="modal-footer-text">還沒有帳號嗎？ </span><span id="modal-switch-mode" style="color: var(--primary); font-weight: 500; cursor: pointer;">立即註冊</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Script Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
