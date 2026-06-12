@@ -1012,3 +1012,93 @@ footer.app-footer {
   background-color: #f1f5f9;
 }
 
+/* Layout Selector Styling */
+.layout-selector {
+  display: flex;
+  align-items: center;
+  background-color: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 0.2rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.layout-label {
+  font-family: var(--font-title);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin-left: 0.75rem;
+  margin-right: 0.25rem;
+}
+
+.layout-btn {
+  background: none;
+  border: none;
+  font-family: var(--font-title);
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.layout-btn:hover {
+  color: var(--primary);
+  background-color: var(--primary-light);
+}
+
+.layout-btn.active {
+  color: white;
+  background-color: var(--primary);
+  font-weight: 600;
+}
+
+/* Dynamic Width for Main Container */
+main {
+  transition: max-width 0.30s ease;
+}
+
+main.layout-cols-2 { max-width: 960px; }
+main.layout-cols-4 { max-width: 1440px; }
+main.layout-cols-6 { max-width: 1800px; }
+
+/* Grid Columns Classes (with Mobile-First Fallback) */
+@media (min-width: 768px) {
+  .feed-grid.cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* 4 Columns configuration */
+@media (min-width: 768px) {
+  .feed-grid.cols-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 1024px) {
+  .feed-grid.cols-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* 6 Columns configuration */
+@media (min-width: 768px) {
+  .feed-grid.cols-6 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 1024px) {
+  .feed-grid.cols-6 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (min-width: 1440px) {
+  .feed-grid.cols-6 {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+

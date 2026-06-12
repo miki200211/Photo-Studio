@@ -4,7 +4,8 @@ let state = {
   currentTab: 'feed',
   gasUrl: 'https://script.google.com/macros/s/AKfycbzBbDpiPkQj58vqJjgDZ00VJcGtBudnq8KFwvCZKVXTHRXlMGi7Lvz8hYZkY0OhBRjB/exec',
   posts: [],
-  searchQuery: ''
+  searchQuery: '',
+  layoutColumns: 2
 };
 
 // Emoji Definitions
@@ -70,6 +71,29 @@ function initAppState() {
     state.currentUser = JSON.parse(cachedUser);
   }
   updateAuthUI();
+  
+  // Load layout columns preference
+  state.layoutColumns = parseInt(localStorage.getItem('layout_columns')) || 2;
+  applyLayoutColumns(state.layoutColumns);
+}
+
+function applyLayoutColumns(cols) {
+  const mainEl = document.querySelector('main');
+  const gridEl = el.feedGrid;
+  
+  // Remove existing layout classes
+  mainEl.classList.remove('layout-cols-2', 'layout-cols-4', 'layout-cols-6');
+  gridEl.classList.remove('cols-2', 'cols-4', 'cols-6');
+  
+  // Add new layout classes
+  mainEl.classList.add(`layout-cols-${cols}`);
+  gridEl.classList.add(`cols-${cols}`);
+  
+  // Sync button active states
+  document.querySelectorAll('.layout-btn').forEach(btn => {
+    const buttonCols = parseInt(btn.getAttribute('data-cols')) || 2;
+    btn.classList.toggle('active', buttonCols === cols);
+  });
 }
 
 // 2. Event Listeners
@@ -94,6 +118,16 @@ function registerEventListeners() {
     state.searchQuery = '';
     el.clearSearchBtn.style.display = 'none';
     filterAndRenderFeed();
+  });
+
+  // Layout Selector Click Listeners
+  document.querySelectorAll('.layout-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cols = parseInt(btn.getAttribute('data-cols')) || 2;
+      state.layoutColumns = cols;
+      localStorage.setItem('layout_columns', cols);
+      applyLayoutColumns(cols);
+    });
   });
 
   // Authentication Modals
