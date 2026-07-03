@@ -32,21 +32,8 @@
         </button>
       </nav>
       
-      <!-- Authentication / User Actions -->
+      <!-- Header Actions -->
       <div class="user-controls">
-        <div class="user-badge" id="user-badge" style="display: none;">
-          <i class="fas fa-user-circle"></i>
-          <span id="user-name-span">使用者</span>
-        </div>
-        <button class="btn btn-secondary" id="login-btn">
-          <i class="fas fa-sign-in-alt"></i> 登入
-        </button>
-        <button class="btn btn-primary" id="register-btn">
-          <i class="fas fa-user-plus"></i> 註冊
-        </button>
-        <button class="btn btn-outline" id="logout-btn" style="display: none;">
-          <i class="fas fa-sign-out-alt"></i> 登出
-        </button>
       </div>
     </div>
   </header>
@@ -125,6 +112,12 @@
             </div>
           </div>
           
+          <!-- Image Title -->
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label for="upload-title">文章標題：</label>
+            <input type="text" id="upload-title" class="input-control" placeholder="輸入文章標題..." required>
+          </div>
+          
           <!-- Image Description -->
           <div class="form-group" style="margin-bottom: 1.5rem;">
             <label for="upload-description">圖片說明與心情：（可使用 #標籤 例如 #峻...，方便快速篩選搜尋）</label>
@@ -142,20 +135,7 @@
         </form>
       </div>
       
-      <!-- Unauthorized Login Prompt -->
-      <div class="upload-login-prompt" id="upload-login-wrapper" style="display: none;">
-        <i class="fas fa-lock"></i>
-        <h3>需要會員登入</h3>
-        <p style="color: var(--text-secondary); font-size: 0.9rem;">發布新的圖片與心情需要先登入您的會員帳號。</p>
-        <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
-          <button class="btn btn-primary" onclick="openAuthModal('login')">
-            <i class="fas fa-sign-in-alt"></i> 登入帳號
-          </button>
-          <button class="btn btn-secondary" onclick="openAuthModal('register')">
-            <i class="fas fa-user-plus"></i> 註冊帳號
-          </button>
-        </div>
-      </div>
+
       
     </section>
 
@@ -169,45 +149,7 @@
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <!-- Authentication Modal (Login & Register Dialog) -->
-  <div class="modal-overlay" id="auth-modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 class="modal-title" id="auth-modal-title">會員登入</h3>
-        <button class="modal-close" id="modal-close"><i class="fas fa-times"></i></button>
-      </div>
-      
-      <form id="auth-form">
-        <div class="modal-body">
-          <!-- Display Name (Registration Only) -->
-          <div class="form-group" id="auth-name-group" style="display: none;">
-            <label for="auth-name">您的名字：</label>
-            <input type="text" id="auth-name" class="input-control" placeholder="請輸入您顯示的名字">
-          </div>
-          
-          <!-- Email Field -->
-          <div class="form-group">
-            <label for="auth-email">電子郵件 Email：</label>
-            <input type="email" id="auth-email" class="input-control" placeholder="example@domain.com" required>
-          </div>
-          
-          <!-- Password Field -->
-          <div class="form-group">
-            <label for="auth-password">密碼 Password：</label>
-            <input type="password" id="auth-password" class="input-control" placeholder="請輸入您的密碼" required minlength="4">
-          </div>
-          
-          <button type="submit" class="btn btn-primary" id="auth-submit-btn" style="width: 100%; margin-top: 0.5rem; padding: 0.75rem;">
-            登入
-          </button>
-        </div>
-      </form>
-      
-      <div class="modal-footer">
-        <span id="modal-footer-text">還沒有帳號嗎？ </span><span id="modal-switch-mode" style="color: var(--primary); font-weight: 500; cursor: pointer;">立即註冊</span>
-      </div>
-    </div>
-  </div>
+
 
   <!-- App Script Logic -->
   <script src="app.js"></script>

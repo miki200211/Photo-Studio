@@ -38,11 +38,7 @@ function doPost(e) {
     var payload = JSON.parse(e.postData.contents);
     var action = payload.action;
     
-    if (action === "register") {
-      response = handleRegister(payload);
-    } else if (action === "login") {
-      response = handleLogin(payload);
-    } else if (action === "uploadPost") {
+    if (action === "uploadPost") {
       response = handleUploadPost(payload);
     } else if (action === "addComment") {
       response = handleAddComment(payload);
@@ -171,59 +167,7 @@ function getDriveFolder() {
   return structure.database;
 }
 
-/**
- * Action Handler: Register
- */
-function handleRegister(payload) {
-  var email = (payload.email || "").trim().toLowerCase();
-  var password = payload.password || "";
-  var name = (payload.name || "").trim();
-  
-  if (!email || !password || !name) {
-    return { success: false, message: "Missing required fields" };
-  }
-  
-  var ss = getAccountSpreadsheet();
-  var sheet = ss.getSheetByName("Users");
-  
-  var data = sheet.getDataRange().getValues();
-  for (var i = 1; i < data.length; i++) {
-    if (data[i][0].toString().toLowerCase() === email) {
-      return { success: false, message: "Email is already registered" };
-    }
-  }
-  
-  sheet.appendRow([email, password, name, new Date().toISOString()]);
-  return { success: true, message: "Registration successful!", user: { email: email, name: name } };
-}
 
-/**
- * Action Handler: Login
- */
-function handleLogin(payload) {
-  var email = (payload.email || "").trim().toLowerCase();
-  var password = payload.password || "";
-  
-  if (!email || !password) {
-    return { success: false, message: "Email and password are required" };
-  }
-  
-  var ss = getAccountSpreadsheet();
-  var sheet = ss.getSheetByName("Users");
-  
-  var data = sheet.getDataRange().getValues();
-  for (var i = 1; i < data.length; i++) {
-    if (data[i][0].toString().toLowerCase() === email && data[i][1].toString() === password) {
-      return { 
-        success: true, 
-        message: "Login successful!", 
-        user: { email: data[i][0], name: data[i][2] } 
-      };
-    }
-  }
-  
-  return { success: false, message: "Invalid email or password" };
-}
 
 /**
  * Action Handler: Upload Post
@@ -609,4 +553,60 @@ function getFeedData() {
   });
   
   return posts;
+}
+
+/**
+ * Developer utility function to clear all database records and Drive uploaded images.
+ * Select and run this function in the Google Apps Script editor to reset the studio database.
+ */
+function devClearAllDatabaseData() {
+  var structure = getPhotoStudioFolderStructure();
+  
+  // 1. Clear Messenger Database (Posts & Comments)
+  try {
+    var messengerSs = getMessengerSpreadsheet();
+    
+    var postsSheet = messengerSs.getSheetByName("Posts");
+    if (postsSheet && postsSheet.getLastRow() > 1) {
+      postsSheet.deleteRows(2, postsSheet.getLastRow() - 1);
+      console.log("Cleared Posts sheet.");
+    }
+    
+    var commentsSheet = messengerSs.getSheetByName("Comments");
+    if (commentsSheet && commentsSheet.getLastRow() > 1) {
+      commentsSheet.deleteRows(2, commentsSheet.getLastRow() - 1);
+      console.log("Cleared Comments sheet.");
+    }
+  } catch (err) {
+    console.error("Error clearing messenger spreadsheet: " + err.toString());
+  }
+  
+  // 2. Clear Account Database (Users)
+  try {
+    var accountSs = getAccountSpreadsheet();
+    var usersSheet = accountSs.getSheetByName("Users");
+    if (usersSheet && usersSheet.getLastRow() > 1) {
+      usersSheet.deleteRows(2, usersSheet.getLastRow() - 1);
+      console.log("Cleared Users sheet.");
+    }
+  } catch (err) {
+    console.error("Error clearing account spreadsheet: " + err.toString());
+  }
+  
+  // 3. Clear Google Drive uploaded files in the database folder
+  try {
+    var folder = structure.database;
+    var files = folder.getFiles();
+    var count = 0;
+    while (files.hasNext()) {
+      var file = files.next();
+      file.setTrashed(true);
+      count++;
+    }
+    console.log("Trashed " + count + " image files from Google Drive folder.");
+  } catch (err) {
+    console.error("Error trashing Drive files: " + err.toString());
+  }
+  
+  return "Database and Drive folder reset successfully!";
 }

@@ -127,21 +127,6 @@ nav {
   gap: 1rem;
 }
 
-.user-badge {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-  color: var(--text-primary);
-  font-weight: 500;
-  background-color: #f1f5f9;
-  padding: 0.4rem 0.8rem;
-  border-radius: var(--radius-full);
-}
-
-.user-badge i {
-  color: var(--primary);
-}
 
 .btn {
   display: inline-flex;

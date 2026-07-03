@@ -1,6 +1,6 @@
 // Production Application State
 let state = {
-  currentUser: null,
+  clientIp: 'unknown_ip',
   currentTab: 'feed',
   gasUrl: 'https://script.google.com/macros/s/AKfycbzBbDpiPkQj58vqJjgDZ00VJcGtBudnq8KFwvCZKVXTHRXlMGi7Lvz8hYZkY0OhBRjB/exec',
   posts: [],
@@ -22,13 +22,6 @@ const el = {
   navTabs: document.querySelectorAll('.nav-tab'),
   viewSections: document.querySelectorAll('.view-section'),
   
-  // Auth Controls
-  loginBtn: document.getElementById('login-btn'),
-  registerBtn: document.getElementById('register-btn'),
-  logoutBtn: document.getElementById('logout-btn'),
-  userBadge: document.getElementById('user-badge'),
-  userNameSpan: document.getElementById('user-name-span'),
-  
   // Feed View
   feedGrid: document.getElementById('feed-grid'),
   refreshFeedBtn: document.getElementById('refresh-feed-btn'),
@@ -44,33 +37,45 @@ const el = {
   removePreviewBtn: document.getElementById('remove-preview-btn'),
   uploadBtn: document.getElementById('upload-btn'),
   uploadPlaceholder: document.getElementById('upload-placeholder'),
-  uploadProgress: document.getElementById('upload-progress'),
-  
-  // Modals
-  authModal: document.getElementById('auth-modal'),
-  authModalTitle: document.getElementById('auth-modal-title'),
-  authForm: document.getElementById('auth-form'),
-  authNameGroup: document.getElementById('auth-name-group'),
-  authSubmitBtn: document.getElementById('auth-submit-btn'),
-  modalClose: document.getElementById('modal-close'),
-  modalSwitchMode: document.getElementById('modal-switch-mode'),
-  modalFooterText: document.getElementById('modal-footer-text')
+  uploadProgress: document.getElementById('upload-progress')
 };
 
 // Initialize Application
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await fetchClientIp();
   initAppState();
   registerEventListeners();
   loadFeed();
 });
 
+async function fetchClientIp() {
+  const services = [
+    'https://api.ipify.org?format=json',
+    'https://httpbin.org/ip',
+    'https://ipinfo.io/json'
+  ];
+  for (let service of services) {
+    try {
+      const res = await fetch(service);
+      const data = await res.json();
+      const ip = data.ip || data.origin;
+      if (ip) {
+        state.clientIp = ip.split(',')[0].trim();
+        console.log("Client IP successfully fetched:", state.clientIp);
+        return;
+      }
+    } catch (e) {
+      console.warn(`Failed to fetch IP from ${service}:`, e);
+    }
+  }
+  state.clientIp = 'unknown_ip';
+}
+
 // 1. Initialize State
 function initAppState() {
-  const cachedUser = localStorage.getItem('user_session');
-  if (cachedUser) {
-    state.currentUser = JSON.parse(cachedUser);
-  }
-  updateAuthUI();
+  // Clear legacy login session and visitor profile if they exist
+  localStorage.removeItem('user_session');
+  localStorage.removeItem('visitor_profile');
   
   // Load layout columns preference
   state.layoutColumns = parseInt(localStorage.getItem('layout_columns')) || 2;
@@ -130,18 +135,6 @@ function registerEventListeners() {
     });
   });
 
-  // Authentication Modals
-  el.loginBtn.addEventListener('click', () => openAuthModal('login'));
-  el.registerBtn.addEventListener('click', () => openAuthModal('register'));
-  el.logoutBtn.addEventListener('click', handleLogout);
-  el.modalClose.addEventListener('click', closeAuthModal);
-  el.authForm.addEventListener('submit', handleAuthSubmit);
-  
-  el.modalSwitchMode.addEventListener('click', () => {
-    const isLogin = el.authModalTitle.innerText === '會員登入';
-    openAuthModal(isLogin ? 'register' : 'login');
-  });
-
   // Upload Actions
   el.dropzone.addEventListener('click', () => el.fileInput.click());
   el.fileInput.addEventListener('change', handleFileSelect);
@@ -188,13 +181,6 @@ function registerEventListeners() {
                   || Array.from(files).some(file => file.type.startsWith('image/'));
                   
     if (!hasImage) return; // Ignore if not pasting an image
-    
-    if (!state.currentUser) {
-      showToast("請先登入會員再貼上圖片！", "warning");
-      openAuthModal('login');
-      e.preventDefault();
-      return;
-    }
     
     let imageFile = null;
     
@@ -252,51 +238,6 @@ function switchTab(view) {
 
   if (view === 'feed') {
     loadFeed();
-  } else if (view === 'upload') {
-    checkUploadAccess();
-  }
-}
-
-function updateAuthUI() {
-  if (state.currentUser) {
-    el.loginBtn.style.display = 'none';
-    el.registerBtn.style.display = 'none';
-    el.logoutBtn.style.display = 'inline-flex';
-    el.userBadge.style.display = 'inline-flex';
-    el.userNameSpan.innerText = state.currentUser.name;
-    document.getElementById('upload-form-wrapper').style.display = 'block';
-    document.getElementById('upload-login-wrapper').style.display = 'none';
-  } else {
-    el.loginBtn.style.display = 'inline-flex';
-    el.registerBtn.style.display = 'inline-flex';
-    el.logoutBtn.style.display = 'none';
-    el.userBadge.style.display = 'none';
-    document.getElementById('upload-form-wrapper').style.display = 'none';
-    document.getElementById('upload-login-wrapper').style.display = 'flex';
-  }
-  
-  document.querySelectorAll('.add-comment-input').forEach(input => {
-    if (state.currentUser) {
-      input.placeholder = "寫下你的留言...";
-      input.disabled = false;
-    } else {
-      input.placeholder = "請登入會員後進行留言";
-      input.disabled = true;
-    }
-  });
-  
-  document.querySelectorAll('.comment-login-tip').forEach(tip => {
-    tip.style.display = state.currentUser ? 'none' : 'block';
-  });
-}
-
-function checkUploadAccess() {
-  if (!state.currentUser) {
-    document.getElementById('upload-form-wrapper').style.display = 'none';
-    document.getElementById('upload-login-wrapper').style.display = 'flex';
-  } else {
-    document.getElementById('upload-form-wrapper').style.display = 'block';
-    document.getElementById('upload-login-wrapper').style.display = 'none';
   }
 }
 
@@ -321,90 +262,6 @@ function showToast(message, type = 'success') {
     toast.classList.add('fade-out');
     toast.addEventListener('animationend', () => toast.remove());
   }, 4000);
-}
-
-// 4. Authentication Logic
-function openAuthModal(mode) {
-  el.authModal.classList.add('active');
-  el.authForm.reset();
-  
-  if (mode === 'login') {
-    el.authModalTitle.innerText = '會員登入';
-    el.authNameGroup.style.display = 'none';
-    document.getElementById('auth-name').required = false;
-    el.authSubmitBtn.innerText = '登入';
-    el.modalFooterText.innerText = '還沒有帳號嗎？ ';
-    el.modalSwitchMode.innerText = '立即註冊';
-  } else {
-    el.authModalTitle.innerText = '註冊會員';
-    el.authNameGroup.style.display = 'flex';
-    document.getElementById('auth-name').required = true;
-    el.authSubmitBtn.innerText = '註冊';
-    el.modalFooterText.innerText = '已經有帳號了？ ';
-    el.modalSwitchMode.innerText = '登入帳號';
-  }
-}
-
-function closeAuthModal() {
-  el.authModal.classList.remove('active');
-}
-
-async function handleAuthSubmit(e) {
-  e.preventDefault();
-  
-  const email = document.getElementById('auth-email').value.trim();
-  const password = document.getElementById('auth-password').value;
-  const name = document.getElementById('auth-name').value.trim();
-  const isRegister = el.authModalTitle.innerText === '註冊會員';
-  
-  el.authSubmitBtn.disabled = true;
-  el.authSubmitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 處理中...';
-
-  try {
-    const payload = {
-      action: isRegister ? 'register' : 'login',
-      email,
-      password,
-      name
-    };
-    
-    const response = await fetch(state.gasUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(payload)
-    });
-    
-    const result = await response.json();
-    
-    if (result.success) {
-      state.currentUser = result.user;
-      localStorage.setItem('user_session', JSON.stringify(result.user));
-      showToast(result.message, "success");
-      closeAuthModal();
-      updateAuthUI();
-      filterAndRenderFeed();
-    } else {
-      showToast(result.message, "error");
-    }
-  } catch (error) {
-    console.error("Auth error:", error);
-    showToast(`網路連線或伺服器錯誤: ${error.message}`, "error");
-  } finally {
-    el.authSubmitBtn.disabled = false;
-    el.authSubmitBtn.innerText = isRegister ? '註冊' : '登入';
-  }
-}
-
-function handleLogout() {
-  state.currentUser = null;
-  localStorage.removeItem('user_session');
-  updateAuthUI();
-  showToast("已成功登出會員", "success");
-  if (state.currentTab === 'upload') {
-    switchTab('feed');
-  } else {
-    filterAndRenderFeed();
-  }
 }
 
 // 5. Image Compression & Selection
@@ -439,6 +296,17 @@ function compressImage(file, maxWidth = 800, maxHeight = 800, quality = 0.7) {
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = (event) => {
+      // Bypass canvas compression for GIF to preserve animations
+      if (file.type === 'image/gif') {
+        resolve({
+          base64: event.target.result,
+          width: null,
+          height: null,
+          mimeType: 'image/gif'
+        });
+        return;
+      }
+
       const img = new Image();
       img.src = event.target.result;
       img.onload = () => {
@@ -482,20 +350,23 @@ async function handleUploadSubmit(e) {
   e.preventDefault();
   
   const file = el.fileInput.files[0];
+  const title = document.getElementById('upload-title').value.trim();
   const description = document.getElementById('upload-description').value.trim();
   
-  if (!state.currentUser) {
-    showToast("請先登入會員再上傳圖片！", "warning");
-    return;
-  }
   if (!file) {
     showToast("請選擇要上傳的圖片！", "warning");
+    return;
+  }
+  if (!title) {
+    showToast("請輸入文章標題！", "warning");
     return;
   }
 
   el.uploadBtn.disabled = true;
   el.uploadProgress.style.display = 'block';
-  el.uploadProgress.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 壓縮圖片中...';
+  el.uploadProgress.innerHTML = file.type === 'image/gif'
+    ? '<i class="fas fa-spinner fa-spin"></i> 正在處理 GIF 圖片...'
+    : '<i class="fas fa-spinner fa-spin"></i> 壓縮圖片中...';
 
   try {
     const compressed = await compressImage(file);
@@ -503,8 +374,8 @@ async function handleUploadSubmit(e) {
     
     const payload = {
       action: 'uploadPost',
-      email: state.currentUser.email,
-      name: state.currentUser.name,
+      email: state.clientIp,
+      name: title,
       description: description,
       imageBase64: compressed.base64,
       mimeType: compressed.mimeType,
@@ -656,10 +527,9 @@ function renderFeed(postsToRender) {
     const timeFormatted = formatTime(post.createdAt);
     const commentsList = post.comments || [];
     const isCommentsVisible = localStorage.getItem(`comments_visible_${post.id}`) === 'true';
-    const initials = (post.name || "?").substring(0, 2);
     
     // Auth Check: Is current user the post author?
-    const isPostAuthor = state.currentUser && state.currentUser.email.toLowerCase() === post.email.toLowerCase();
+    const isPostAuthor = state.clientIp !== 'unknown_ip' && state.clientIp.toLowerCase() === post.email.toLowerCase();
     const postActionsHtml = isPostAuthor 
       ? `
         <div class="post-card-actions">
@@ -688,24 +558,18 @@ function renderFeed(postsToRender) {
     }).join('');
 
     // Comments Form
-    const commentFormHtml = state.currentUser 
-      ? `
-        <form class="add-comment-form" onsubmit="submitComment(event, '${post.id}')">
-          <input type="text" class="input-control add-comment-input" placeholder="寫下你的留言..." required>
-          <button type="submit" class="btn btn-primary btn-icon" title="送出留言">
-            <i class="fas fa-paper-plane"></i>
-          </button>
-        </form>
-      `
-      : `
-        <div class="comment-login-tip">
-          請先 <span onclick="openAuthModal('login')">會員登入</span> 以進行留言互動
-        </div>
-      `;
+    const commentFormHtml = `
+      <form class="add-comment-form" onsubmit="submitComment(event, '${post.id}')">
+        <input type="text" class="input-control add-comment-input" placeholder="寫下你的留言..." required>
+        <button type="submit" class="btn btn-primary btn-icon" title="送出留言">
+          <i class="fas fa-paper-plane"></i>
+        </button>
+      </form>
+    `;
 
     // Render Comments List
     const commentsHtml = commentsList.map(c => {
-      const isCommentAuthor = state.currentUser && state.currentUser.email.toLowerCase() === c.email.toLowerCase();
+      const isCommentAuthor = state.clientIp !== 'unknown_ip' && state.clientIp.toLowerCase() === c.email.toLowerCase();
       const commentActionsHtml = isCommentAuthor
         ? `
           <div class="comment-item-actions">
@@ -717,7 +581,7 @@ function renderFeed(postsToRender) {
         
       return `
         <div class="comment-item">
-          <div class="user-avatar comment-avatar">${(c.name || "?").substring(0, 1)}</div>
+          <div class="user-avatar comment-avatar"><i class="fas fa-comment-dots"></i></div>
           <div class="comment-bubble">
             <div>
               <span class="comment-author">${escapeHtml(c.name)}</span>
@@ -747,10 +611,10 @@ function renderFeed(postsToRender) {
     return `
       <article class="post-card" id="post-card-${post.id}">
         <div class="post-user">
-          <div class="user-avatar">${initials}</div>
+          <div class="user-avatar"><i class="far fa-image"></i></div>
           <div class="post-meta">
             <span class="post-author-name">${escapeHtml(post.name)}</span>
-            <span class="post-time">${timeFormatted}</span>
+            <span class="post-time">${timeFormatted} • IP 記錄已存檔</span>
           </div>
           ${postActionsHtml}
         </div>
@@ -840,7 +704,7 @@ window.saveEditPost = async function(postId) {
     const payload = {
       action: 'editPost',
       postId: postId,
-      email: state.currentUser.email,
+      email: state.clientIp,
       description: newDescription
     };
     
@@ -879,7 +743,7 @@ window.deletePost = async function(postId) {
     const payload = {
       action: 'deletePost',
       postId: postId,
-      email: state.currentUser.email
+      email: state.clientIp
     };
     
     const response = await fetch(state.gasUrl, {
@@ -946,7 +810,7 @@ window.saveEditComment = async function(postId, commentId) {
     const payload = {
       action: 'editComment',
       commentId: commentId,
-      email: state.currentUser.email,
+      email: state.clientIp,
       comment: newCommentText
     };
     
@@ -989,7 +853,7 @@ window.deleteComment = async function(postId, commentId) {
     const payload = {
       action: 'deleteComment',
       commentId: commentId,
-      email: state.currentUser.email
+      email: state.clientIp
     };
     
     const response = await fetch(state.gasUrl, {
@@ -1156,7 +1020,7 @@ async function submitComment(event, postId) {
   const commentText = input.value.trim();
   const submitBtn = form.querySelector('button');
   
-  if (!commentText || !state.currentUser) return;
+  if (!commentText) return;
   
   submitBtn.disabled = true;
   submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
@@ -1165,8 +1029,8 @@ async function submitComment(event, postId) {
     const payload = {
       action: 'addComment',
       postId: postId,
-      email: state.currentUser.email,
-      name: state.currentUser.name,
+      email: state.clientIp,
+      name: '匿名訪客',
       comment: commentText
     };
     
@@ -1245,4 +1109,3 @@ function escapeHtml(text) {
 // Make globally accessible for HTML inline triggers
 window.switchTab = switchTab;
 window.submitComment = submitComment;
-window.openAuthModal = openAuthModal;
